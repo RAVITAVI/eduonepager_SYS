@@ -233,7 +233,7 @@
 
     <div id="startupModal" class="modal-overlay" style="display: flex;">
         <div class="modal-content">
-            <h2>ברוכות הבאות! 🚀</h2>
+            <h2>ברוכים הבאים! 🚀</h2>
             <div id="startupLoader">טוען...</div>
             <div class="startup-list" id="startupList"></div>
             <button class="btn" onclick="document.getElementById('adminTriggerBtn').click()" style="margin-top:15px; width:100%;">כניסת מורה</button>
@@ -275,10 +275,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- מנגנון זיהוי מורה מה-URL ---
         const urlParams = new URLSearchParams(window.location.search);
         const teacherId = urlParams.get('teacher') || 'default'; 
-        // ניתוב הנתונים לפי מורה
         const getTeacherRef = () => collection(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects');
         
         let currentDocId = null;
