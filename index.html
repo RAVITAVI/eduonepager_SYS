@@ -1,1 +1,164 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        const firebaseConfig = {
+            apiKey: "AIzaSyA4hs-olPLdz43xxzybEA88doKy2v4HJi0",
+            authDomain: "school-onepager.firebaseapp.com",
+            projectId: "school-onepager",
+            storageBucket: "school-onepager.firebasestorage.app",
+            messagingSenderId: "178469105635",
+            appId: "1:178469105635:web:8aea3d99706ab233923ad6"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- מנגנון זיהוי מורה מה-URL ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const teacherId = urlParams.get('teacher') || 'default_school'; // אם אין מורה ב-URL, ישמור לקולקציה כללית
+        const COLLECTION_ID = `projects_${teacherId}`; 
+        
+        let currentDocId = null;
+        let globalDocs = [];
+        let currentLogoBase64 = null;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('cloudStatus').innerText = `☁️ מחובר: ${teacherId}`;
+                // הניתוב ב-Firebase משתנה לפי המורה
+                onSnapshot(collection(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects'), (snap) => {
+                    globalDocs = []; snap.forEach(d => globalDocs.push(d.data()));
+                    renderLists();
+                    document.getElementById('startupLoader').style.display = 'none';
+                });
+            } else { signInAnonymously(auth); }
+        });
+
+        // --- שאר הפונקציות נשארות זהות לחלוטין ---
+        document.getElementById('logoInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                currentLogoBase64 = event.target.result;
+                const img = document.getElementById('logoPreview');
+                img.src = currentLogoBase64; img.style.display = 'block';
+                document.getElementById('logoPlaceholder').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        };
+
+        const renderLists = () => {
+            const startup = document.getElementById('startupList');
+            const admin = document.getElementById('adminListContainer');
+            startup.innerHTML = ''; admin.innerHTML = '';
+            globalDocs.forEach(d => {
+                const sItem = document.createElement('div');
+                sItem.className = 'startup-item';
+                sItem.innerHTML = `<strong>${d.name}</strong> <span>⬅️</span>`;
+                sItem.onclick = () => loadProject(d);
+                startup.appendChild(sItem);
+
+                const aItem = document.createElement('div');
+                aItem.style = "display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #eee;";
+                aItem.innerHTML = `<span>${d.name}</span> <button onclick="deleteProject('${d.id}')" style="color:red; background:none; border:none;">✖</button>`;
+                admin.appendChild(aItem);
+            });
+        };
+
+        const loadProject = (d) => {
+            currentDocId = d.id;
+            document.getElementById('projectName').innerText = d.projectName || d.name;
+            document.getElementById('category').value = d.category || '';
+            document.getElementById('team').innerHTML = d.team || '';
+            document.getElementById('vision').innerHTML = d.vision || '';
+            document.getElementById('problem').innerHTML = d.problem || '';
+            document.getElementById('solution').innerHTML = d.solution || '';
+            document.getElementById('howItWorks').innerHTML = d.howItWorks || '';
+            document.getElementById('uniqueness').innerHTML = d.uniqueness || '';
+            if (d.logoBase64) {
+                currentLogoBase64 = d.logoBase64;
+                const img = document.getElementById('logoPreview');
+                img.src = currentLogoBase64; img.style.display = 'block';
+                document.getElementById('logoPlaceholder').style.display = 'none';
+            }
+            document.getElementById('startupModal').style.display = 'none';
+        };
+
+        document.getElementById('saveBtn').onclick = async () => {
+            if(!currentDocId) return;
+            const btn = document.getElementById('saveBtn'); btn.innerText = '⌛ שומר...';
+            await setDoc(doc(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects', currentDocId), {
+                projectName: document.getElementById('projectName').innerText,
+                category: document.getElementById('category').value,
+                team: document.getElementById('team').innerHTML,
+                vision: document.getElementById('vision').innerHTML,
+                problem: document.getElementById('problem').innerHTML,
+                solution: document.getElementById('solution').innerHTML,
+                howItWorks: document.getElementById('howItWorks').innerHTML,
+                uniqueness: document.getElementById('uniqueness').innerHTML,
+                logoBase64: currentLogoBase64
+            }, { merge: true });
+            btn.innerText = '✅ נשמר!';
+            setTimeout(() => btn.innerText = '☁️ שמירה בענן', 2000);
+        };
+
+        // --- פונקציות ייצוא (ללא שינוי) ---
+        document.getElementById('wordBtn').onclick = () => {
+            const projectName = document.getElementById('projectName').innerText || "Project";
+            const category = document.getElementById('category').value || "";
+            const getContent = (id) => {
+                const el = document.getElementById(id);
+                let html = el.innerHTML || el.value || "";
+                return html.replace(/<br\s*\/?>/gi, "<br/>").replace(/<\/div>/gi, "<br/>").replace(/<div>/gi, "");
+            };
+            const docHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'></head>
+                <body style="direction:rtl; text-align:right;">
+                    <h1>${projectName}</h1>
+                    <p>תחום: ${category}</p>
+                    <h3>צוות</h3><div>${getContent('team')}</div>
+                    <h3>חזון</h3><div>${getContent('vision')}</div>
+                    <h3>הבעיה</h3><div>${getContent('problem')}</div>
+                    <h3>הפתרון</h3><div>${getContent('solution')}</div>
+                    <h3>איך זה עובד</h3><div>${getContent('howItWorks')}</div>
+                    <h3>ייחודיות</h3><div>${getContent('uniqueness')}</div>
+                </body></html>`;
+            const converted = htmlDocx.asBlob(docHtml);
+            saveAs(converted, `${projectName}_OnePager.docx`);
+        };
+
+        document.getElementById('printBtn').onclick = () => { window.print(); };
+
+        document.getElementById('adminTriggerBtn').onclick = () => {
+            document.getElementById('adminModal').style.display = 'flex';
+            document.getElementById('adminAuth').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+        };
+        
+        document.getElementById('adminCloseX').onclick = () => { document.getElementById('adminModal').style.display = 'none'; };
+
+        document.getElementById('loginAdminBtn').onclick = () => {
+            if(document.getElementById('adminPin').value === '173') {
+                document.getElementById('adminAuth').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+            }
+        };
+
+        document.getElementById('addProjBtn').onclick = async () => {
+            const name = document.getElementById('newProjName').value.trim();
+            if(!name) return;
+            const id = 'p' + Date.now();
+            await setDoc(doc(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects', id), { id, name });
+            document.getElementById('newProjName').value = '';
+        };
+
+        window.deleteProject = async (id) => { 
+            if(confirm('מחיקה?')) await deleteDoc(doc(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects', id)); 
+        };
+
+        document.getElementById('closeAdminBtn').onclick = () => document.getElementById('adminModal').style.display = 'none';
+        document.getElementById('switchBtn').onclick = () => location.reload();
