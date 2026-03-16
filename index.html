@@ -1,4 +1,264 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One Pager - Creator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.rawgit.com/evidenceprime/html-docx-js/master/dist/html-docx.js"></script>
+    
+    <style id="mainStyles">
+        :root {
+            --primary-color: #000000;
+            --accent-color: #3498db;
+            --bg-color: #e9ecef;
+            --paper-color: #ffffff;
+            --text-color: #2c3e50;
+            --hint-color: #7f8c8d;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; align-items: center;
+            color: var(--text-color);
+        }
+
+        /* UI Controls */
+        .controls {
+            position: fixed; top: 20px; left: 20px;
+            display: flex; flex-direction: column; gap: 10px;
+            z-index: 1000;
+        }
+        .btn {
+            background-color: #2c3e50; color: white; border: none; padding: 12px 20px;
+            border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 14px;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        #cloudStatus { background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 5px; font-size: 11px; text-align: center; border: 1px solid #ccc; }
+
+        /* Document Styling */
+        .document-container {
+            margin: 40px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            background: var(--paper-color);
+            padding: 20mm 15mm;
+            box-sizing: border-box;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .logo-container {
+            width: 120px; height: 120px;
+            border: 2px dashed var(--border-color);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; position: relative; cursor: pointer;
+            background: #fafafa; border-radius: 8px; overflow: hidden;
+        }
+        .logo-container img { width: 100%; height: 100%; object-fit: contain; }
+        .logo-container span { font-size: 11px; color: var(--hint-color); padding: 5px; }
+
+        .field-group { margin-bottom: 20px; }
+        
+        .label {
+            font-weight: 800; font-size: 18px; color: var(--primary-color);
+            display: block; margin-bottom: 5px; border-right: 4px solid var(--accent-color); padding-right: 10px;
+        }
+
+        .hint-text {
+            font-size: 12px; color: #666; display: block; margin-bottom: 8px; line-height: 1.4;
+            background: #f0f4f8; padding: 8px; border-radius: 4px;
+        }
+
+        .editable-area {
+            width: 100%; min-height: 30px; border: 1px solid transparent;
+            padding: 5px 0; font-size: 16px; outline: none; line-height: 1.6;
+            text-align: right;
+        }
+        .editable-area:focus { background: #fffdf0; border-bottom: 1px solid var(--accent-color); }
+
+        .select-input {
+            width: 100%; padding: 8px; font-family: 'Heebo'; font-size: 16px;
+            border: 1px solid var(--border-color); border-radius: 4px; background: white;
+        }
+
+        .page-break-label { text-align: center; color: #95a5a6; font-size: 11px; margin: 5px 0; }
+
+        /* Modal Overlays */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 5000; display: none;
+            justify-content: center; align-items: center; backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: white; padding: 30px; border-radius: 15px; width: 500px; max-width: 90%;
+            text-align: center; position: relative;
+        }
+
+        .close-modal-x {
+            position: absolute; top: 15px; right: 15px; font-size: 24px; cursor: pointer; color: #7f8c8d; line-height: 1;
+        }
+        .close-modal-x:hover { color: #e74c3c; }
+
+        .startup-item { 
+            padding: 12px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 8px; 
+            cursor: pointer; display: flex; justify-content: space-between; background: white;
+        }
+        .startup-item:hover { background: #f0f7ff; border-color: var(--accent-color); }
+
+        /* PRINT-ONLY STYLES */
+        @media print {
+            @page { size: A4; margin: 0; }
+            html, body { width: 210mm; height: 297mm; background: white !important; }
+            .controls, .page-break-label, .modal-overlay, .logo-container span, .hint-text { display: none !important; }
+            .document-container { margin: 0; padding: 0; display: block; width: 210mm; }
+            .page { 
+                box-shadow: none !important; margin: 0 !important; border: none !important; 
+                padding: 15mm 15mm !important; width: 210mm !important; height: 297mm !important; 
+                page-break-after: always !important; display: flex !important; background: white !important;
+            }
+            .editable-area { border: none !important; background: transparent !important; }
+            .select-input { border: none !important; appearance: none !important; font-weight: bold; background: transparent !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div id="cloudStatus">מתחבר...</div>
+        <button class="btn" id="saveBtn" style="background: #27ae60;">☁️ שמירה בענן</button>
+        <button class="btn" id="switchBtn">🔄 החלפת יוזמה</button>
+        <button class="btn" id="printBtn" style="background: #e67e22;">🖨️ שמירה כ-PDF / הדפסה</button>
+        <button class="btn" id="wordBtn" style="background: #2980b9;">📝 שמירה לוורד (Word)</button>
+        <button class="btn" id="adminTriggerBtn" style="background: #34495e;">🔒 ניהול</button>
+    </div>
+
+    <div class="document-container" id="printableArea">
+        <div class="page" id="page1">
+            <div class="header-section">
+                <div style="flex: 1; margin-left: 20px;">
+                    <div class="field-group">
+                        <label class="label">שם המיזם:</label>
+                        <span class="hint-text">שם קצר וקליט שייצג את הרעיון בצורה חדשנית.</span>
+                        <div class="editable-area" id="projectName" contenteditable="true" style="font-size: 26px; font-weight: 900;"></div>
+                    </div>
+                    
+                    <div class="field-group">
+                        <label class="label" style="font-size: 15px;">תחום היוזמה:</label>
+                        <select class="select-input" id="category">
+                            <option value="" disabled selected>בחרו תחום</option>
+                            <option value="חברתית">חברתית</option>
+                            <option value="סביבתית">סביבתית</option>
+                            <option value="לימודית">לימודית</option>
+                            <option value="בריאותית">בריאותית</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="logo-container" id="logoClickArea" onclick="document.getElementById('logoInput').click()">
+                    <input type="file" id="logoInput" hidden accept="image/*">
+                    <img id="logoPreview" style="display: none;">
+                    <span id="logoPlaceholder">📸 לוגו המיזם</span>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label class="label">חברי צוות ותפקידים:</label>
+                <span class="hint-text">שמות ותחומי אחריות (מנכ"ל, מעצב, טכנולוגי וכו').</span>
+                <div class="editable-area" id="team" contenteditable="true" style="min-height: 60px;"></div>
+            </div>
+
+            <div class="field-group">
+                <label class="label">רקע וחזון:</label>
+                <span class="hint-text">מהות הרעיון והשינוי שהמוצר יחולל בעולם.</span>
+                <div class="editable-area" id="vision" contenteditable="true" style="min-height: 80px;"></div>
+            </div>
+
+            <div class="field-group">
+                <label class="label">הבעיה / הצורך:</label>
+                <span class="hint-text">מה האתגר? למי זה מפריע? מה המצב כיום?</span>
+                <div class="editable-area" id="problem" contenteditable="true" style="min-height: 180px;"></div>
+            </div>
+        </div>
+
+        <div class="page-break-label">--- סוף עמוד 1 ---</div>
+
+        <div class="page" id="page2">
+            <div class="field-group">
+                <label class="label">הפתרון המוצע:</label>
+                <span class="hint-text">תיאור המיזם ואיך הוא עונה על הצורך.</span>
+                <div class="editable-area" id="solution" contenteditable="true" style="min-height: 140px;"></div>
+            </div>
+
+            <div class="field-group">
+                <label class="label">איך זה עובד?</label>
+                <span class="hint-text">תיאור טכני או תפעולי של המוצר/שירות.</span>
+                <div class="editable-area" id="howItWorks" contenteditable="true" style="min-height: 200px;"></div>
+            </div>
+
+            <div class="field-group">
+                <label class="label">ייחודיות וערך מוסף:</label>
+                <span class="hint-text">למה שיבחרו בכם? מה היתרון על פני אחרים?</span>
+                <div class="editable-area" id="uniqueness" contenteditable="true" style="min-height: 140px;"></div>
+            </div>
+
+            <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; text-align: left; font-size: 11px; color: #aaa;">
+                One Pager - יזמות כיתתית | תכנית אפיון רשמית
+            </div>
+        </div>
+    </div>
+
+    <div id="startupModal" class="modal-overlay" style="display: flex;">
+        <div class="modal-content">
+            <h2>ברוכות הבאות! 🚀</h2>
+            <div id="startupLoader">טוען...</div>
+            <div class="startup-list" id="startupList"></div>
+            <button class="btn" onclick="document.getElementById('adminTriggerBtn').click()" style="margin-top:15px; width:100%;">כניסת מורה</button>
+        </div>
+    </div>
+
+    <div id="adminModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: right;">
+            <span class="close-modal-x" id="adminCloseX">&times;</span>
+            <h3>🔒 ניהול</h3>
+            <div id="adminAuth">
+                <input type="password" id="adminPin" placeholder="קוד גישה" style="width:100%; padding:10px; margin:10px 0;">
+                <button class="btn" id="loginAdminBtn" style="width:100%;">כניסה</button>
+            </div>
+            <div id="adminPanel" style="display:none;">
+                <input type="text" id="newProjName" placeholder="שם יוזמה חדשה" style="width:100%; padding:8px;">
+                <button class="btn" id="addProjBtn" style="width:100%; margin:10px 0;">הוסף</button>
+                <div id="adminListContainer"></div>
+                <button class="btn" id="closeAdminBtn" style="width:100%; background:#95a5a6; margin-top: 10px;">סגור פאנל</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -17,8 +277,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         // --- מנגנון זיהוי מורה מה-URL ---
         const urlParams = new URLSearchParams(window.location.search);
-        const teacherId = urlParams.get('teacher') || 'default_school'; // אם אין מורה ב-URL, ישמור לקולקציה כללית
-        const COLLECTION_ID = `projects_${teacherId}`; 
+        const teacherId = urlParams.get('teacher') || 'default'; 
+        // ניתוב הנתונים לפי מורה
+        const getTeacherRef = () => collection(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects');
         
         let currentDocId = null;
         let globalDocs = [];
@@ -26,9 +287,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                document.getElementById('cloudStatus').innerText = `☁️ מחובר: ${teacherId}`;
-                // הניתוב ב-Firebase משתנה לפי המורה
-                onSnapshot(collection(db, 'artifacts', 'school-management', 'teachers', teacherId, 'projects'), (snap) => {
+                document.getElementById('cloudStatus').innerText = `☁️ מורה: ${teacherId}`;
+                onSnapshot(getTeacherRef(), (snap) => {
                     globalDocs = []; snap.forEach(d => globalDocs.push(d.data()));
                     renderLists();
                     document.getElementById('startupLoader').style.display = 'none';
@@ -36,15 +296,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             } else { signInAnonymously(auth); }
         });
 
-        // --- שאר הפונקציות נשארות זהות לחלוטין ---
         document.getElementById('logoInput').onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
                 currentLogoBase64 = event.target.result;
-                const img = document.getElementById('logoPreview');
-                img.src = currentLogoBase64; img.style.display = 'block';
+                document.getElementById('logoPreview').src = currentLogoBase64;
+                document.getElementById('logoPreview').style.display = 'block';
                 document.getElementById('logoPlaceholder').style.display = 'none';
             };
             reader.readAsDataURL(file);
@@ -80,8 +339,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             document.getElementById('uniqueness').innerHTML = d.uniqueness || '';
             if (d.logoBase64) {
                 currentLogoBase64 = d.logoBase64;
-                const img = document.getElementById('logoPreview');
-                img.src = currentLogoBase64; img.style.display = 'block';
+                document.getElementById('logoPreview').src = currentLogoBase64;
+                document.getElementById('logoPreview').style.display = 'block';
                 document.getElementById('logoPlaceholder').style.display = 'none';
             }
             document.getElementById('startupModal').style.display = 'none';
@@ -105,7 +364,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             setTimeout(() => btn.innerText = '☁️ שמירה בענן', 2000);
         };
 
-        // --- פונקציות ייצוא (ללא שינוי) ---
         document.getElementById('wordBtn').onclick = () => {
             const projectName = document.getElementById('projectName').innerText || "Project";
             const category = document.getElementById('category').value || "";
@@ -116,16 +374,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             };
             const docHtml = `
                 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                <head><meta charset='utf-8'></head>
-                <body style="direction:rtl; text-align:right;">
-                    <h1>${projectName}</h1>
-                    <p>תחום: ${category}</p>
-                    <h3>צוות</h3><div>${getContent('team')}</div>
-                    <h3>חזון</h3><div>${getContent('vision')}</div>
-                    <h3>הבעיה</h3><div>${getContent('problem')}</div>
-                    <h3>הפתרון</h3><div>${getContent('solution')}</div>
-                    <h3>איך זה עובד</h3><div>${getContent('howItWorks')}</div>
-                    <h3>ייחודיות</h3><div>${getContent('uniqueness')}</div>
+                <head><meta charset='utf-8'><style>body { direction: rtl; text-align: right; font-family: Arial; }</style></head>
+                <body>
+                    <h1>${projectName}</h1><p>תחום: ${category}</p>
+                    <h2>צוות</h2><div>${getContent('team')}</div>
+                    <h2>חזון</h2><div>${getContent('vision')}</div>
+                    <h2>הבעיה</h2><div>${getContent('problem')}</div>
+                    <h2>הפתרון</h2><div>${getContent('solution')}</div>
+                    <h2>איך זה עובד</h2><div>${getContent('howItWorks')}</div>
+                    <h2>ייחודיות</h2><div>${getContent('uniqueness')}</div>
                 </body></html>`;
             const converted = htmlDocx.asBlob(docHtml);
             saveAs(converted, `${projectName}_OnePager.docx`);
@@ -162,3 +419,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         document.getElementById('closeAdminBtn').onclick = () => document.getElementById('adminModal').style.display = 'none';
         document.getElementById('switchBtn').onclick = () => location.reload();
+    </script>
+</body>
+</html>
