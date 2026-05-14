@@ -294,7 +294,7 @@
             } else { signInAnonymously(auth); }
         });
 
-        document.getElementById('logoInput').onchange = (e) => {
+        /*document.getElementById('logoInput').onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -303,6 +303,44 @@
                 document.getElementById('logoPreview').src = currentLogoBase64;
                 document.getElementById('logoPreview').style.display = 'block';
                 document.getElementById('logoPlaceholder').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        };*/
+        document.getElementById('logoInput').onchange = (e) => {
+            const file = e.target.files[0]; 
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgObj = new Image();
+                imgObj.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_SIZE = 400; // הגבלת גודל מקסימלי לפיקסלים
+                    let width = imgObj.width;
+                    let height = imgObj.height;
+
+                    // שמירה על פרופורציות
+                    if (width > height && width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imgObj, 0, 0, width, height);
+
+                    // דחיסת התמונה כדי לא לחרוג ממגבלת 1MB של Firestore
+                    currentLogoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    const imgPreview = document.getElementById('logoPreview');
+                    imgPreview.src = currentLogoBase64; 
+                    imgPreview.style.display = 'block';
+                    document.getElementById('logoPlaceholder').style.display = 'none';
+                };
+                imgObj.src = event.target.result;
             };
             reader.readAsDataURL(file);
         };
